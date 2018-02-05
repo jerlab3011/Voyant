@@ -38,6 +38,9 @@ Ext.define('Voyant.panel.DreamScape', {
         // Maximum number of locations to be returned by the server
         maxResults: 400,
 
+        // Maximum number of characters between two locations to be considered a connection
+        maxTravelDistance: 100,
+
         // Constant that changes how zoomed the map must be for cities with less occurences to appear
         // The lower the value, the sooner small cities will appear
         zoomTreshold: 80,
@@ -204,8 +207,8 @@ Ext.define('Voyant.panel.DreamScape', {
                                 var yearEnd = filter.yearEnd ? filter.yearEnd : "";
                                 this.filter(0, author, title, yearBegin, yearEnd);
                             }
-                        }],
-                    },
+                        }]
+                    }
 
 
                 }/*,'-',{
@@ -224,7 +227,7 @@ Ext.define('Voyant.panel.DreamScape', {
                         }
                     }*/]
             }]
-        })
+        });
 
         this.on("loadedCorpus", function(src, corpus) {
 
@@ -235,7 +238,7 @@ Ext.define('Voyant.panel.DreamScape', {
                     limit: 1
                 },
                 callback: function(records, operation, success) {
-                    if (success && records && records.length==1) {
+                    if (success && records && records.length===1) {
                         this.down('toolbar').getComponent("author").show();
                     } else {
                         this.toastInfo(this.localize('noauthor'));
@@ -252,7 +255,7 @@ Ext.define('Voyant.panel.DreamScape', {
                     limit: 1
                 },
                 callback: function(records, operation, success) {
-                    if (success && !records && records.length==1) {
+                    if (success && !records && records.length===1) {
                         var min = parseInt(records[0].getTerm());
                         new Voyant.data.store.CorpusTerms({corpus: corpus}).load({
                             params: {
@@ -261,7 +264,7 @@ Ext.define('Voyant.panel.DreamScape', {
                                 limit: 1
                             },
                             callback: function(records, operation, success) {
-                                if (success && !records && records.length==1) {
+                                if (success && !records && records.length===1) {
                                     var max = parseInt(records[0].getTerm());
                                     var pubDate = this.down('toolbar').getComponent("pubDate");
                                     pubDate.setMinValue(min);
@@ -345,31 +348,28 @@ Ext.define('Voyant.panel.DreamScape', {
                 if(features) {
                     var infos = "<ul>";
                     features.forEach( function(feature) {
+                        var featureOccurences = feature.get("occurences");
+                        var header = feature.get("text");
+                        var coordinate = event.coordinate;
                         if( feature.getGeometry().getType() === "Circle" && feature.get("selected")) {
-                            var featureOccurences = feature.get("occurences");
                             featureOccurences.forEach(function(entry) {
                                 infos += '<li>'+entry.name+' : '+texts[entry.docIndex].authors+', <a href="#" onclick="console.log(\'triggerEventHere\'+'+entry.offset+');return false;">'+texts[entry.docIndex].title+'</a>, '+texts[entry.docIndex].year+' '+entry.offset+'</li>';
                             });
-                            var header = feature.get("text");
-                            infos += "</ul>";
                             if(feature.get("alternates").length > 0) {
                                 header += ' ('+feature.get("alternates")+')';
                             }
-                            var coordinate = event.coordinate;
                             panel.getContentEl().setHtml('<h3>'+header+'</h3>'+infos);
                             panel.getOverlay().setPosition(coordinate);
                         } else if(feature.get("selected")) {
-                            var featureOccurences = feature.get("occurences");
                             featureOccurences.forEach(function(travel) {
-                                infos += '<li>from : '+travel.from.name+' : '+texts[travel.from.docIndex].authors+', <a href="#" onclick="console.log(\'triggerEventHere\'+'+travel.from.offset+');return false;">'+texts[travel.from.docIndex].title+'</a>, '+texts[travel.from.docIndex].year+', '+
-                                    'to: '+travel.to.name+' : '+texts[travel.to.docIndex].authors+' , <a href="#" onclick="console.log(\'triggerEventHere\'+'+travel.to.offset+');return false;">'+texts[travel.to.docIndex].title+'</a>, '+texts[travel.to.docIndex].year+'</li>';
+                                infos += '<li>from <a href="#" onclick="console.log(\'triggerEventHere\'+'+travel.from.offset+');return false;">'+ travel.from.name+'</a> ' +
+                                    'to <a href="#" onclick="console.log(\'triggerEventHere\'+'+travel.to.offset+');return false;">'+ travel.to.name+'</a>. ' + texts[travel.from.docIndex].title+', '+
+                                    texts[travel.from.docIndex].authors + ', ' + texts[travel.to.docIndex].year+'</li>';
                             });
-                            var header = feature.get("text");
-                            infos += "</ul>";
-                            var coordinate = event.coordinate;
-                            panel.getContentEl().setHtml('<h3>'+header+'</h3>'+infos);
-                            panel.getOverlay().setPosition(coordinate);
                         }
+                        infos += "</ul>";
+                        panel.getContentEl().setHtml('<h3>'+header+'</h3>'+infos);
+                        panel.getOverlay().setPosition(coordinate);
                     });
                 }
             });
@@ -654,7 +654,7 @@ Ext.define('Voyant.panel.DreamScape', {
             });
             entries.sort(function(a, b) {
                 var x = a.docIndex - b.docIndex;
-                return x == 0? a.offset - b.offset : x;
+                return x === 0? a.offset - b.offset : x;
             });
             var results = {locations: locationsResults, entries: entries, texts: textsResults};
 
@@ -821,47 +821,49 @@ Ext.define('Voyant.panel.DreamScape', {
                     }
                 } else {
                     var coordinates = [entry.coordinates[1], entry.coordinates[0]];
-                    var key = [previousCoordinates, coordinates];
-                    if ((previousCoordinates[0] !== coordinates[0] || previousCoordinates[1] !== coordinates[1]) &&
-                        cities[filterId][coordinates].get("visible")) {
-                        if (!travels[filterId][key]) {
-                            var previousCity = cities[filterId][previousCoordinates].get("description");
-                            var nextCity = cities[filterId][coordinates].get("description");
-                            var description = previousCity+'-'+nextCity;
-                            // create an arc circle between the two locations
-                            var arcGenerator = new arc.GreatCircle(
-                                {x: previousCoordinates[0], y: previousCoordinates[1]},
-                                {x: coordinates[0], y: coordinates[1]});
+                    if (cities[filterId][coordinates].get("visible")) {
+                        var maxTravelDistance = this.getMaxTravelDistance();
+                        if ((previousCoordinates[0] !== coordinates[0] || previousCoordinates[1] !== coordinates[1]) &&
+                            entry.docIndex === previousEntry.docIndex && (entry.offset - previousEntry.offset) < maxTravelDistance) {
+                            var key = [previousCoordinates, coordinates];
+                            if (!travels[filterId][key]) {
+                                var previousCity = cities[filterId][previousCoordinates].get("description");
+                                var nextCity = cities[filterId][coordinates].get("description");
+                                var description = previousCity+'-'+nextCity;
+                                // create an arc circle between the two locations
+                                var arcGenerator = new arc.GreatCircle(
+                                    {x: previousCoordinates[0], y: previousCoordinates[1]},
+                                    {x: coordinates[0], y: coordinates[1]});
 
-                            var arcLine = arcGenerator.Arc(this.getPointsPerArc(), {offset: 100});
-                            arcLine.geometries.forEach(function(geometry) {
-                                var line = new ol.geom.LineString(geometry.coords);
-                                line.transform(ol.proj.get('EPSG:4326'), ol.proj.get('EPSG:3857'));
-                                var colors = this.getColors();
-                                var color = colors[filterId];
-                                var feature = new ol.Feature({
-                                    geometry: line,
-                                    description: description,
-                                    text: description + "(1)",
-                                    finished: true,
-                                    occurences: [{from: previousEntry, to: entry}],
-                                    color: color,
-                                    filterId: filterId,
-                                    start: previousCoordinates,
-                                    end: coordinates
-                                });
-                                vectorLayer.getSource().addFeature(feature);
-                                travels[filterId][key] = feature;
-                            }, this);
-                            previousCoordinates = coordinates;
-                            previousEntry = entry;
-                        } else {
-                            var occurences = travels[filterId][key].get("occurences");
-                            occurences.push({from: previousEntry, to: entry});
-                            var text = travels[filterId][key].get("description") + "(" + occurences.length + ")";
-                            travels[filterId][key].set("text", text);
+                                var arcLine = arcGenerator.Arc(this.getPointsPerArc(), {offset: 100});
+                                arcLine.geometries.forEach(function(geometry) {
+                                    var line = new ol.geom.LineString(geometry.coords);
+                                    line.transform(ol.proj.get('EPSG:4326'), ol.proj.get('EPSG:3857'));
+                                    var colors = this.getColors();
+                                    var color = colors[filterId];
+                                    var feature = new ol.Feature({
+                                        geometry: line,
+                                        description: description,
+                                        text: description + "(1)",
+                                        finished: true,
+                                        occurences: [{from: previousEntry, to: entry}],
+                                        color: color,
+                                        filterId: filterId,
+                                        start: previousCoordinates,
+                                        end: coordinates
+                                    });
+                                    vectorLayer.getSource().addFeature(feature);
+                                    travels[filterId][key] = feature;
+                                }, this);
+                            } else {
+                                var occurences = travels[filterId][key].get("occurences");
+                                occurences.push({from: previousEntry, to: entry});
+                                var text = travels[filterId][key].get("description") + "(" + occurences.length + ")";
+                                travels[filterId][key].set("text", text);
+                            }
                         }
-
+                        previousCoordinates = coordinates;
+                        previousEntry = entry;
                     }
                 }
             }
