@@ -361,11 +361,19 @@ Ext.define('Voyant.panel.DreamScape', {
                             panel.getContentEl().setHtml('<h3>'+header+'</h3>'+infos);
                             panel.getOverlay().setPosition(coordinate);
                         } else if(feature.get("selected")) {
+                            var firstTravel = featureOccurences[0];
                             featureOccurences.forEach(function(travel) {
                                 infos += '<li>from <a href="#" onclick="console.log(\'triggerEventHere\'+'+travel.from.offset+');return false;">'+ travel.from.name+'</a> ' +
                                     'to <a href="#" onclick="console.log(\'triggerEventHere\'+'+travel.to.offset+');return false;">'+ travel.to.name+'</a>. ' + texts[travel.from.docIndex].title+', '+
                                     texts[travel.from.docIndex].authors + ', ' + texts[travel.to.docIndex].year+'</li>';
                             });
+                            map.getView().setCenter(ol.proj.fromLonLat([parseFloat(firstTravel.from.coordinates[1]), parseFloat(firstTravel.from.coordinates[0])]));
+                            window.setTimeout(function(){
+                                map.getView().animate({
+                                    center: ol.proj.fromLonLat([parseFloat(firstTravel.to.coordinates[1]), parseFloat(firstTravel.to.coordinates[0])]),
+                                    duration: 2000
+                                });
+                            }, 1000);
                         }
                         infos += "</ul>";
                         panel.getContentEl().setHtml('<h3>'+header+'</h3>'+infos);
@@ -721,7 +729,7 @@ Ext.define('Voyant.panel.DreamScape', {
             // Trigger calculation if feature sizes
             var resolution = map.getView().getResolution() + 1;
             map.getView().setResolution(resolution);
-            // Adjust view to show newly filtered citiesç
+            // Adjust view to show newly filtered cities
             if(citiesLayer.getSource().getFeatures().length > 0){
                 map.getView().fit(citiesLayer.getSource().getExtent())
             }
@@ -752,8 +760,8 @@ Ext.define('Voyant.panel.DreamScape', {
             visible: false,
             opacity: 0.4,
             style: this.travelStyleFunction.bind(this),
-            updateWhileAnimating: false, // optional, for instant visual feedback
-            updateWhileInteracting: false // optional, for instant visual feedback
+            updateWhileAnimating: true, // optional, for instant visual feedback
+            updateWhileInteracting: true // optional, for instant visual feedback
         });
         map.addLayer(filterLayer);
 
@@ -821,11 +829,11 @@ Ext.define('Voyant.panel.DreamScape', {
                     }
                 } else {
                     var coordinates = [entry.coordinates[1], entry.coordinates[0]];
+                    var key = [previousCoordinates, coordinates];
                     if (cities[filterId][coordinates].get("visible")) {
                         var maxTravelDistance = this.getMaxTravelDistance();
                         if ((previousCoordinates[0] !== coordinates[0] || previousCoordinates[1] !== coordinates[1]) &&
                             entry.docIndex === previousEntry.docIndex && (entry.offset - previousEntry.offset) < maxTravelDistance) {
-                            var key = [previousCoordinates, coordinates];
                             if (!travels[filterId][key]) {
                                 var previousCity = cities[filterId][previousCoordinates].get("description");
                                 var nextCity = cities[filterId][coordinates].get("description");
