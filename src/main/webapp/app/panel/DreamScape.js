@@ -39,7 +39,7 @@ Ext.define('Voyant.panel.DreamScape', {
         maxResults: 400,
 
         // Maximum number of characters between two locations to be considered a connection
-        maxTravelDistance: 100,
+        maxTravelDistance: 50,
 
         // Constant that changes how zoomed the map must be for cities with less occurences to appear
         // The lower the value, the sooner small cities will appear
@@ -172,7 +172,12 @@ Ext.define('Voyant.panel.DreamScape', {
                                 change: function(cmp, vals) {
                                     filters = this.getFilters();
                                     filter = filters[0];
-                                    filter[cmp.getItemId()] = vals[0];
+                                    if(cmp.getItemId() == "pubDate") {
+                                        filter["yearBegin"] = cmp.thumbs[0].value;
+                                        filter["yearEnd"] = cmp.thumbs[1].value;
+                                    } else {
+                                        filter[cmp.getItemId()] = vals[0];
+                                    }
                                     console.warn(cmp, vals)
                                 }
                             }
@@ -192,8 +197,11 @@ Ext.define('Voyant.panel.DreamScape', {
                         },{
                             xtype: 'multislider',
                             fieldLabel: this.localize('pubDateLabel'),
-                            itemId: 'pubDate',
-                            hidden: true
+                            values: [1400, 1800],
+                            maxValue: 1800,
+                            minValue: 1400,
+                            increment: 1,
+                            itemId: 'pubDate'
                         },{
                             xtype: 'button',
                             text: 'filter',
@@ -353,11 +361,13 @@ Ext.define('Voyant.panel.DreamScape', {
                         var coordinate = event.coordinate;
                         if( feature.getGeometry().getType() === "Circle" && feature.get("selected")) {
                             featureOccurences.forEach(function(entry) {
-                                infos += '<li>'+entry.name+' : '+texts[entry.docIndex].authors+', <a href="#" onclick="console.log(\'triggerEventHere\'+'+entry.offset+');return false;">'+texts[entry.docIndex].title+'</a>, '+texts[entry.docIndex].year+' '+entry.offset+'</li>';
+                                infos += '<li><a href="#" onclick="console.log(\'triggerEventHere\'+'+entry.offset+');return false;">' +
+                                    entry.name+'</a>, ' + texts[entry.docIndex].title + ', ' + (texts[entry.docIndex].authors?texts[entry.docIndex].authors : "Unknown") + texts[entry.docIndex].year+' '+entry.offset+'</li>';
                             });
                             if(feature.get("alternates").length > 0) {
                                 header += ' ('+feature.get("alternates")+')';
                             }
+                            infos += "</ul>";
                             panel.getContentEl().setHtml('<h3>'+header+'</h3>'+infos);
                             panel.getOverlay().setPosition(coordinate);
                         } else if(feature.get("selected")) {
@@ -365,8 +375,9 @@ Ext.define('Voyant.panel.DreamScape', {
                             featureOccurences.forEach(function(travel) {
                                 infos += '<li>from <a href="#" onclick="console.log(\'triggerEventHere\'+'+travel.from.offset+');return false;">'+ travel.from.name+'</a> ' +
                                     'to <a href="#" onclick="console.log(\'triggerEventHere\'+'+travel.to.offset+');return false;">'+ travel.to.name+'</a>. ' + texts[travel.from.docIndex].title+', '+
-                                    texts[travel.from.docIndex].authors + ', ' + texts[travel.to.docIndex].year+'</li>';
+                                    (texts[travel.from.docIndex].authors?texts[travel.from.docIndex].authors: "Unknown") + ', ' + texts[travel.to.docIndex].year+'</li>';
                             });
+                            infos += "</ul>";
                             map.getView().setCenter(ol.proj.fromLonLat([parseFloat(firstTravel.from.coordinates[1]), parseFloat(firstTravel.from.coordinates[0])]));
                             window.setTimeout(function(){
                                 map.getView().animate({
@@ -374,10 +385,11 @@ Ext.define('Voyant.panel.DreamScape', {
                                     duration: 2000
                                 });
                             }, 1000);
+                            panel.getContentEl().setHtml('<h3>'+header+'</h3>'+infos);
+                            panel.getOverlay().setPosition(ol.proj.fromLonLat([parseFloat(firstTravel.to.coordinates[1]), parseFloat(firstTravel.to.coordinates[0])]));
                         }
-                        infos += "</ul>";
-                        panel.getContentEl().setHtml('<h3>'+header+'</h3>'+infos);
-                        panel.getOverlay().setPosition(coordinate);
+
+
                     });
                 }
             });
@@ -601,13 +613,12 @@ Ext.define('Voyant.panel.DreamScape', {
     serverSideFiltering: function(author, title, yearBegin, yearEnd, maxResults) {
         var dataFile = this.getBaseUrl()+'resources/dreamscape/datafile.json';
         return fetch(dataFile).then(function(response) {return response.json()}).then(function(json) {
-            var annotatedCollection = json.AnnotatedCollection;
             var locations = [];
             var entries = [];
             var texts = [];
             var docIndex = 0;
-            annotatedCollection.forEach(function(text) {
-                if (text.authors.toLowerCase().includes(author.toLowerCase()) &&
+            json.forEach(function(text) {
+                if ((author === "" || (text.authors && text.authors.toLowerCase().includes(author.toLowerCase()))) &&
                     text.title.toLowerCase().includes(title.toLowerCase()) &&
                     (yearBegin === "" || text.year >= yearBegin) &&
                     (yearEnd === "" || text.year <= yearEnd)) {
@@ -637,9 +648,13 @@ Ext.define('Voyant.panel.DreamScape', {
                 docIndex++;
             });
 
-            // Transform key-value array to regular array so it can be sorted
+            // Sort occurences by offset and transform key-value array to regular array so it can be sorted
             var locationsWithoutKey = [];
             for(coords in locations) {
+                locations[coords].occurences.sort(function(a, b) {
+                    var x = a.docIndex - b.docIndex;
+                    return x === 0? a.offset - b.offset : x;
+                });
                 locationsWithoutKey.push(locations[coords]);
             }
             locationsWithoutKey.sort(function(a, b) {
@@ -697,7 +712,6 @@ Ext.define('Voyant.panel.DreamScape', {
             panel.generateTravels(filterId);
         });
         this.serverSideFiltering(author, title, yearBegin, yearEnd, this.getMaxResults()).then(function(results) {return JSON.parse(results)}).then(function(results) {
-            console.log(results);
             panel.setTexts(results.texts);
             nbOfEntries = panel.getNbOfEntries();
             nbOfEntries[filterId] = results.entries.length;
@@ -822,13 +836,13 @@ Ext.define('Voyant.panel.DreamScape', {
             for (var i = 0; i < coordinatesSequence[filterId].length; i++) {
                 var entry = coordinatesSequence[filterId][i];
                 if (!foundStart) {
-                    previousCoordinates = [entry.coordinates[1], entry.coordinates[0]];
+                    previousCoordinates = [parseFloat(entry.coordinates[1]), parseFloat(entry.coordinates[0])];
                     if (cities[filterId][previousCoordinates].get("visible")) {
                         previousEntry = entry;
                         foundStart = true;
                     }
                 } else {
-                    var coordinates = [entry.coordinates[1], entry.coordinates[0]];
+                    var coordinates = [parseFloat(entry.coordinates[1]), parseFloat(entry.coordinates[0])];
                     var key = [previousCoordinates, coordinates];
                     if (cities[filterId][coordinates].get("visible")) {
                         var maxTravelDistance = this.getMaxTravelDistance();
