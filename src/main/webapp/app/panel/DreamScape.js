@@ -374,8 +374,10 @@ Ext.define('Voyant.panel.DreamScape', {
                         var coordinate = event.coordinate;
                         if( feature.getGeometry().getType() === "Circle" && feature.get("selected")) {
                             featureOccurences.forEach(function(entry) {
+                                var title = texts[entry.docIndex].title;
+                                var shortTitle = title.length < 20 ? title: title.substring(0,20) + "...";
                                 infos += '<li><a href="#" docIndex='+entry.docIndex+' offset='+entry.offset+' location='+entry.name+' class="termLocationLink">' +
-                                    entry.name+'</a>, ' + texts[entry.docIndex].title + ', ' + (texts[entry.docIndex].authors?texts[entry.docIndex].authors : "Unknown") + texts[entry.docIndex].year+' '+entry.offset+'</li>';
+                                    entry.name+'</a>, ' + shortTitle + ', ' + (texts[entry.docIndex].authors?texts[entry.docIndex].authors : "Unknown") + texts[entry.docIndex].year+' '+entry.offset+'</li>';
                             });
                             if(feature.get("alternates").length > 0) {
                                 header += ' ('+feature.get("alternates")+')';
@@ -386,9 +388,11 @@ Ext.define('Voyant.panel.DreamScape', {
                         } else if(feature.get("selected")) {
                             var firstTravel = featureOccurences[0];
                             featureOccurences.forEach(function(travel) {
+                                var title = texts[travel.from.docIndex].title;
+                                var shortTitle = title.length < 20 ? title: title.substring(0,20) + "...";
                                 infos += '<li>from <a href="#" docIndex='+travel.from.docIndex+' offset='+travel.from.offset+' location='+travel.from.name+' class="termLocationLink">' + travel.from.name + '</a>' +
                                     'to <a href="#" docIndex='+travel.to.docIndex+' offset='+travel.to.offset+' location='+travel.to.name+' class="termLocationLink">' + travel.to.name + '</a>' +
-                                    texts[travel.from.docIndex].title+', '+ (texts[travel.from.docIndex].authors?texts[travel.from.docIndex].authors: "Unknown") + ', ' + texts[travel.to.docIndex].year+'</li>';
+                                    shortTitle +', '+ (texts[travel.from.docIndex].authors?texts[travel.from.docIndex].authors: "Unknown") + ', ' + texts[travel.to.docIndex].year+'</li>';
                             });
                             infos += "</ul>";
                             map.getView().setCenter(ol.proj.fromLonLat([parseFloat(firstTravel.from.coordinates[1]), parseFloat(firstTravel.from.coordinates[0])]));
