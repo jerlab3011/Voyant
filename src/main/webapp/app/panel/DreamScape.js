@@ -54,13 +54,13 @@ Ext.define('Voyant.panel.DreamScape', {
         nbOfEntries: [],
 
         // Speed of vectors drawing
-        pointsPerMs: 0.3,
+        pointsPerMs: 0.1,
 
         // Number of points per arc. More points means more dense and rounded arcs but may affect performance
         pointsPerArc: 100,
 
         // Time between vectors drawing
-        delayBetweenVectors: 100 / 0.3,
+        delayBetweenVectors: 100 / 0.1,
 
         // Used to keep track of number of filters
         filterCount: 0,
@@ -136,90 +136,103 @@ Ext.define('Voyant.panel.DreamScape', {
                 dock: 'bottom',
                 xtype: 'toolbar',
                 overflowHandler: 'scroller',
-                items: [{
-                    text: this.localize('show'),
-                    tooltip: this.localize('showTip'),
-                    menu: {
-                        defaults: {
-                            xtype: 'menucheckitem',
-                            checkHandler: function(item, checked) {
-                                var map = this.getMap().getLayer(item.getItemId()+"0");
-                                map.setVisible(checked)
-                            },
-                            scope: this,
-                            checked: true
-                        },
-                        items: [{
-                            text: this.localize('cities'),
-                            itemId: 'cities'
-                        },{
-                            text: this.localize('connections'),
-                            itemId: 'layer'
-                        }]
-                    }
-                },{
-                    text: this.localize('filter'),
-                    tooltip: this.localize('filterTip'),
-                    menu: {
-                        defaults: {
-                            xtype: 'querysearchfield',
-                            labelWidth: 60,
-                            labelAlign: 'right',
-                            width: 250,
-                            maxWidth: 250,
-                            listeners: {
+                items: [
+                    {
+                        text: this.localize('show'),
+                        tooltip: this.localize('showTip'),
+                        menu: {
+                            defaults: {
+                                xtype: 'menucheckitem',
+                                checkHandler: function(item, checked) {
+                                    var map = this.getMap().getLayer(item.getItemId()+"0");
+                                    map.setVisible(checked)
+                                },
                                 scope: this,
-                                change: function(cmp, vals) {
-                                    filters = this.getFilters();
-                                    filter = filters[0];
-                                    if(cmp.getItemId() == "pubDate") {
-                                        filter["yearBegin"] = cmp.thumbs[0].value;
-                                        filter["yearEnd"] = cmp.thumbs[1].value;
-                                    } else {
-                                        filter[cmp.getItemId()] = vals[0];
+                                checked: true
+                            },
+                            items: [{
+                                text: this.localize('cities'),
+                                itemId: 'cities'
+                            },{
+                                text: this.localize('connections'),
+                                itemId: 'layer'
+                            }]
+                        }
+                    },
+                    {
+                        text: this.localize('filter'),
+                        tooltip: this.localize('filterTip'),
+                        menu: {
+                            defaults: {
+                                xtype: 'querysearchfield',
+                                labelWidth: 60,
+                                labelAlign: 'right',
+                                width: 250,
+                                maxWidth: 250,
+                                listeners: {
+                                    scope: this,
+                                    change: function(cmp, vals) {
+                                        filters = this.getFilters();
+                                        filter = filters[0];
+                                        if(cmp.getItemId() == "pubDate") {
+                                            filter["yearBegin"] = cmp.thumbs[0].value;
+                                            filter["yearEnd"] = cmp.thumbs[1].value;
+                                        } else {
+                                            filter[cmp.getItemId()] = vals[0];
+                                        }
+                                        console.warn(cmp, vals)
                                     }
-                                    console.warn(cmp, vals)
                                 }
-                            }
-
+                            },
+                            items: [
+                                {
+                                    fieldLabel: this.localize('authorLabel'),
+                                    tokenType: 'author',
+                                    itemId: 'author'
+                                },
+                                {
+                                    fieldLabel: this.localize('titleLabel'),
+                                    itemId: 'title',
+                                    tokenType: 'title'
+                                },
+                                {
+                                    fieldLabel: this.localize('keywordLabel'),
+                                    hidden: true
+                                },
+                                {
+                                    xtype: 'multislider',
+                                    fieldLabel: this.localize('pubDateLabel'),
+                                    values: [1400, 1800],
+                                    maxValue: 1800,
+                                    minValue: 1400,
+                                    increment: 1,
+                                    itemId: 'pubDate'
+                                },
+                                {
+                                    xtype: 'button',
+                                    text: 'filter',
+                                    scope:this,
+                                    handler: function() {
+                                        var filters = this.getFilters();
+                                        var filter = filters[0];
+                                        var author = filter.author ? filter.author : "";
+                                        var title = filter.title ? filter.title : "";
+                                        var yearBegin = filter.yearBegin ? filter.yearBegin : "";
+                                        var yearEnd = filter.yearEnd ? filter.yearEnd : "";
+                                        this.filter(0, author, title, yearBegin, yearEnd);
+                                    }
+                                }
+                            ]
                         },
-                        items: [{
-                            fieldLabel: this.localize('authorLabel'),
-                            tokenType: 'author',
-                            itemId: 'author'
-                        },{
-                            fieldLabel: this.localize('titleLabel'),
-                            itemId: 'title',
-                            tokenType: 'title'
-                        },{
-                            fieldLabel: this.localize('keywordLabel'),
-                            hidden: true
-                        },{
-                            xtype: 'multislider',
-                            fieldLabel: this.localize('pubDateLabel'),
-                            values: [1400, 1800],
-                            maxValue: 1800,
-                            minValue: 1400,
-                            increment: 1,
-                            itemId: 'pubDate'
-                        },{
-                            xtype: 'button',
-                            text: 'filter',
-                            scope:this,
-                            handler: function() {
-                                var filters = this.getFilters();
-                                var filter = filters[0];
-                                var author = filter.author ? filter.author : "";
-                                var title = filter.title ? filter.title : "";
-                                var yearBegin = filter.yearBegin ? filter.yearBegin : "";
-                                var yearEnd = filter.yearEnd ? filter.yearEnd : "";
-                                this.filter(0, author, title, yearBegin, yearEnd);
-                            }
-                        }]
-                    }
-
-
-                }/*,'-',{
+                    },
+                    {
+                        xtype: 'button',
+                        text: 'animate',
+                        scope:this,
+                        handler: function() {
+                            this.animateLayer(0);
+                        }
+                    }/*,'-',{
                         xtype: 'slider',
                         fieldLabel: this.localize('animationSpeed'),
                         minValue: 1,
@@ -361,7 +374,7 @@ Ext.define('Voyant.panel.DreamScape', {
                         var coordinate = event.coordinate;
                         if( feature.getGeometry().getType() === "Circle" && feature.get("selected")) {
                             featureOccurences.forEach(function(entry) {
-                                infos += '<li><a href="#" onclick="console.log(\'triggerEventHere\'+'+entry.offset+');return false;">' +
+                                infos += '<li><a href="#" docIndex='+entry.docIndex+' offset='+entry.offset+' location='+entry.name+' class="termLocationLink">' +
                                     entry.name+'</a>, ' + texts[entry.docIndex].title + ', ' + (texts[entry.docIndex].authors?texts[entry.docIndex].authors : "Unknown") + texts[entry.docIndex].year+' '+entry.offset+'</li>';
                             });
                             if(feature.get("alternates").length > 0) {
@@ -373,9 +386,9 @@ Ext.define('Voyant.panel.DreamScape', {
                         } else if(feature.get("selected")) {
                             var firstTravel = featureOccurences[0];
                             featureOccurences.forEach(function(travel) {
-                                infos += '<li>from <a href="#" onclick="console.log(\'triggerEventHere\'+'+travel.from.offset+');return false;">'+ travel.from.name+'</a> ' +
-                                    'to <a href="#" onclick="console.log(\'triggerEventHere\'+'+travel.to.offset+');return false;">'+ travel.to.name+'</a>. ' + texts[travel.from.docIndex].title+', '+
-                                    (texts[travel.from.docIndex].authors?texts[travel.from.docIndex].authors: "Unknown") + ', ' + texts[travel.to.docIndex].year+'</li>';
+                                infos += '<li>from <a href="#" docIndex='+travel.from.docIndex+' offset='+travel.from.offset+' location='+travel.from.name+' class="termLocationLink">' + travel.from.name + '</a>' +
+                                    'to <a href="#" docIndex='+travel.to.docIndex+' offset='+travel.to.offset+' location='+travel.to.name+' class="termLocationLink">' + travel.to.name + '</a>' +
+                                    texts[travel.from.docIndex].title+', '+ (texts[travel.from.docIndex].authors?texts[travel.from.docIndex].authors: "Unknown") + ', ' + texts[travel.to.docIndex].year+'</li>';
                             });
                             infos += "</ul>";
                             map.getView().setCenter(ol.proj.fromLonLat([parseFloat(firstTravel.from.coordinates[1]), parseFloat(firstTravel.from.coordinates[0])]));
@@ -388,8 +401,10 @@ Ext.define('Voyant.panel.DreamScape', {
                             panel.getContentEl().setHtml('<h3>'+header+'</h3>'+infos);
                             panel.getOverlay().setPosition(ol.proj.fromLonLat([parseFloat(firstTravel.to.coordinates[1]), parseFloat(firstTravel.to.coordinates[0])]));
                         }
-
-
+                        var links = Ext.select('.termLocationLink');
+                        links.elements.forEach(function(link) {
+                            link.onclick = function(){panel.showTermInCorpus(link.getAttribute("docIndex"), link.getAttribute("offset"), link.getAttribute('location'))};
+                        });
                     });
                 }
             });
@@ -934,5 +949,13 @@ Ext.define('Voyant.panel.DreamScape', {
 //            button.onclick = () => animateLayer(filterId);
 //        }, delayBetweenVectors * (filterLayer.getSource().getFeatures().length - 1) );
 //        timedEvents[filterId].push(restoreAnimate);
+    },
+    showTermInCorpus: function(docIndex, position, location) {
+        var term = Ext.create("Voyant.data.model.Context", {
+            docIndex: docIndex,
+            position: position,
+            term: location
+        });
+        this.getApplication().dispatchEvent('termLocationClicked', this, [term]);
     }
 });
