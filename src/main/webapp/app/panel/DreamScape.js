@@ -43,11 +43,11 @@ Ext.define('Voyant.panel.DreamScape', {
 
         // Constant that changes how zoomed the map must be for cities with less occurences to appear
         // The lower the value, the sooner small cities will appear
-        zoomTreshold: 80,
+        zoomTreshold: 0.000002,
 
         // Constant that changes how bigger cities with more occurences are compared to cities with fewer
         // The higher the value, the bigger the difference will be
-        sizeRatio: 50000,
+        sizeRatio: 25,
 
         // global variable for number of location occurences found in corpus
         totalEntries: 0,
@@ -332,6 +332,7 @@ Ext.define('Voyant.panel.DreamScape', {
             };
 
             this.setContentEl(overlayEl.down('.popup-content'));
+            var panel = this;
             var map = new ol.Map({
                 layers: [
                     new ol.layer.Tile({
@@ -355,13 +356,12 @@ Ext.define('Voyant.panel.DreamScape', {
                 overlays: [overlay],
                 view: new ol.View({
                     center: [1500000, 6000000],
-                    minResolution: 50,
+                    maxResolution: 40075016.68557849 / panel.body.dom.offsetWidth,
                     zoom: 0
                 })
             });
 
             // Add a click handler to the map to render the popup
-            var panel = this;
             map.on('singleclick', function(event) {
                 var pixel = event.pixel;
                 var features = map.getFeaturesAtPixel(pixel);
@@ -512,7 +512,7 @@ Ext.define('Voyant.panel.DreamScape', {
             color = feature.get("color");
         }
 
-        var width = 0.5 + Math.sqrt(feature.get("occurences").length/parseFloat(this.getTotalEntries()) * this.getSizeRatio() * 0.2);
+        var width = 0.5 + Math.sqrt(feature.get("occurences").length/parseFloat(this.getTotalEntries()) * this.getSizeRatio() * this.body.dom.offsetWidth * 0.2);
 
         var stroke = new ol.style.Stroke({
             color: color,
@@ -723,10 +723,10 @@ Ext.define('Voyant.panel.DreamScape', {
         var panel = this;
         map.getView().on("change:resolution",function () {
             citiesLayer.getSource().getFeatures().forEach(function(feature) {
-                var zoom = map.getView().getZoom();
-                var width = 5 + Math.sqrt(feature.get("occurences").length/parseFloat(panel.getTotalEntries()) * panel.getSizeRatio());
+                var res = map.getView().getResolution();
+                var width = 5 + Math.sqrt(feature.get("occurences").length/parseFloat(panel.getTotalEntries()) * panel.getSizeRatio() * panel.body.dom.offsetWidth);
                 feature.set("width", width);
-                feature.set("visible", width * zoom > panel.getZoomTreshold());
+                feature.set("visible", width / panel.body.dom.offsetWidth > panel.getZoomTreshold() * res);
             });
             panel.generateTravels(filterId);
         });
