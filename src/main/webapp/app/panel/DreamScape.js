@@ -17,7 +17,9 @@ Ext.define('Voyant.panel.DreamScape', {
             nopubDate: "No publication years defined in this corpus.",
             animationSpeed: "Speed",
             cities: "cities",
-            connections: "connections"
+            connections: "connections",
+            animate: "Animate",
+            currentFilter: "Current filter"
         },
         api: {
             stopList: 'auto',
@@ -61,6 +63,9 @@ Ext.define('Voyant.panel.DreamScape', {
 
         // Time between vectors drawing
         delayBetweenVectors: 100 / 0.1,
+
+        // Used to keep track of current filter
+        currentFilter: 0,
 
         // Used to keep track of number of filters
         filterCount: 0,
@@ -138,13 +143,29 @@ Ext.define('Voyant.panel.DreamScape', {
                 overflowHandler: 'scroller',
                 items: [
                     {
+                        xtype: 'numberfield',
+                        fieldLabel: this.localize('currentFilter'),
+                        value: 0,
+                        minValue: 0,
+                        listeners: {
+                            scope: this,
+                            change: function(field, value) {
+                                this.setCurrentFilter(value);
+                                if(value === this.getFilterCount()){
+                                    this.addFilter();
+                                }
+                            }
+                        }
+                    },
+                    {
                         text: this.localize('show'),
                         tooltip: this.localize('showTip'),
                         menu: {
                             defaults: {
                                 xtype: 'menucheckitem',
                                 checkHandler: function(item, checked) {
-                                    var map = this.getMap().getLayer(item.getItemId()+"0");
+                                    var currentFilter = this.getCurrentFilter();
+                                    var map = this.getMap().getLayer(item.getItemId()+currentFilter);
                                     map.setVisible(checked)
                                 },
                                 scope: this,
@@ -173,7 +194,8 @@ Ext.define('Voyant.panel.DreamScape', {
                                     scope: this,
                                     change: function(cmp, vals) {
                                         filters = this.getFilters();
-                                        filter = filters[0];
+                                        var currentFilter = this.getCurrentFilter();
+                                        filter = filters[currentFilter];
                                         if(cmp.getItemId() == "pubDate") {
                                             filter["yearBegin"] = cmp.thumbs[0].value;
                                             filter["yearEnd"] = cmp.thumbs[1].value;
@@ -211,16 +233,18 @@ Ext.define('Voyant.panel.DreamScape', {
                                 },
                                 {
                                     xtype: 'button',
-                                    text: 'filter',
+                                    text: this.localize('filter'),
                                     scope:this,
                                     handler: function() {
                                         var filters = this.getFilters();
-                                        var filter = filters[0];
+                                        var currentFilter = this.getCurrentFilter();
+                                        var filter = filters[currentFilter];
                                         var authors = filter.authors ? filter.authors : [];
                                         var titles = filter.titles ? filter.titles : [];
                                         var yearBegin = filter.yearBegin ? filter.yearBegin : "";
                                         var yearEnd = filter.yearEnd ? filter.yearEnd : "";
-                                        this.filter(0, authors, titles, yearBegin, yearEnd);
+                                        var currentFilter = this.getCurrentFilter();
+                                        this.filter(currentFilter, authors, titles, yearBegin, yearEnd);
                                     }
                                 }
                             ]
@@ -228,10 +252,11 @@ Ext.define('Voyant.panel.DreamScape', {
                     },
                     {
                         xtype: 'button',
-                        text: 'animate',
+                        text: this.localize('animate'),
                         scope:this,
                         handler: function() {
-                            this.animateLayer(0);
+                            var currentFilter = this.getCurrentFilter();
+                            this.animateLayer(currentFilter);
                         }
                     }/*,'-',{
                         xtype: 'slider',
