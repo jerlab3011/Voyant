@@ -196,7 +196,7 @@ Ext.define('Voyant.panel.DreamScape', {
                                         filters = this.getFilters();
                                         var currentFilter = this.getCurrentFilter();
                                         filter = filters[currentFilter];
-                                        if(cmp.getItemId() == "pubDate") {
+                                        if(cmp.getItemId() === "pubDate") {
                                             filter["yearBegin"] = cmp.thumbs[0].value;
                                             filter["yearEnd"] = cmp.thumbs[1].value;
                                         } else {
@@ -220,7 +220,7 @@ Ext.define('Voyant.panel.DreamScape', {
                                 },
                                 {
                                     fieldLabel: this.localize('keywordLabel'),
-                                    hidden: true
+                                    itemId: 'keywords'
                                 },
                                 {
                                     xtype: 'multislider',
@@ -243,12 +243,12 @@ Ext.define('Voyant.panel.DreamScape', {
                                         var titles = filter.titles ? filter.titles : [];
                                         var yearBegin = filter.yearBegin ? filter.yearBegin : "";
                                         var yearEnd = filter.yearEnd ? filter.yearEnd : "";
-                                        var currentFilter = this.getCurrentFilter();
-                                        this.filter(currentFilter, authors, titles, yearBegin, yearEnd);
+                                        var keywords = filter.keywords ? filter.keywords : [];
+                                        this.filter(currentFilter, authors, titles, yearBegin, yearEnd, keywords);
                                     }
                                 }
                             ]
-                        },
+                        }
                     },
                     {
                         xtype: 'button',
@@ -655,13 +655,14 @@ Ext.define('Voyant.panel.DreamScape', {
         map.render();
     },
     // Filtering that should be done server side
-    serverSideFiltering: function(authors, titles, yearBegin, yearEnd, maxResults) {
+    serverSideFiltering: function(authors, titles, yearBegin, yearEnd, keywords, maxResults) {
         var dataFile = this.getBaseUrl()+'resources/dreamscape/datafile.json';
         return fetch(dataFile).then(function(response) {return response.json()}).then(function(json) {
             var locations = [];
             var entries = [];
             var texts = [];
             var docIndex = 0;
+            var locationsResults = [];
             json.forEach(function(text) {
                 var authorsMatch = false;
                 if (text.authors) {
@@ -676,7 +677,7 @@ Ext.define('Voyant.panel.DreamScape', {
                     if(text.title.toLowerCase().includes(title.toLowerCase())) {
                         titlesMatch = true;
                     }
-                })
+                });
                 if ((authors.length === 0 || authorsMatch) &&
                     (titles.length === 0 || titlesMatch) &&
                     (yearBegin === "" || text.year >= yearBegin) &&
@@ -710,19 +711,38 @@ Ext.define('Voyant.panel.DreamScape', {
             // Sort occurences by offset and transform key-value array to regular array so it can be sorted
             var locationsWithoutKey = [];
             for(coords in locations) {
-                locations[coords].occurences.sort(function(a, b) {
-                    var x = a.docIndex - b.docIndex;
-                    return x === 0? a.offset - b.offset : x;
-                });
-                locationsWithoutKey.push(locations[coords]);
+                var isInKeywords = false;
+                if (keywords.length !== 0) {
+                    keywords.forEach(function(keyword) {
+                        if (locations[coords].name.toLowerCase() === keyword.toLowerCase()) {
+                            locationsResults.push(locations[coords]);
+                            isInKeywords = true;
+                        } else {
+                            locations[coords].alternates.forEach(function(alternate) {
+                                if (alternate.toLowerCase() === keyword.toLowerCase()) {
+                                    locationsResults.push(locations[coords]);
+                                    isInKeywords = true;
+                                }
+                            });
+                        }
+                    })
+                }
+                if (!isInKeywords) {
+                    locationsWithoutKey.push(locations[coords]);
+                }
             }
             locationsWithoutKey.sort(function(a, b) {
                 return (b.occurences.length - a.occurences.length)
             });
 
             // Keep only the most common location up to maxResults number
-            var locationsResults = locationsWithoutKey.splice(0, maxResults);
-
+            locationsResults = locationsResults.concat(locationsWithoutKey.splice(0, maxResults - locationsResults.length));
+            locationsResults.forEach(function(location) {
+                location.occurences.sort(function(a, b) {
+                    var x = a.docIndex - b.docIndex;
+                    return x === 0? a.offset - b.offset : x;
+                });
+            });
             var textsResults = [];
 
             // Place all occurences of most common locations in an array and sort them by their order of appearance
@@ -745,11 +765,12 @@ Ext.define('Voyant.panel.DreamScape', {
         })
     },
     // Called when the filter button is pressed
-    filter: function(filterId, authors, titles, yearBegin, yearEnd) {
+    filter: function(filterId, authors, titles, yearBegin, yearEnd, keywords) {
         authors = typeof authors !== 'undefined' ? authors : [];
         titles = typeof titles !== 'undefined' ? titles : [];
         yearBegin = typeof yearBegin !== 'undefined' ? yearBegin : "";
         yearEnd = typeof yearEnd !== 'undefined' ? yearEnd : "";
+        keywords = typeof keywords !== 'undefined' ? keywords: [];
         var timedEvents = this.getTimedEvents(), cities = this.getCities(),
             map = this.getMap(), colors = this.getColors();
 
@@ -770,7 +791,7 @@ Ext.define('Voyant.panel.DreamScape', {
             });
             panel.generateTravels(filterId);
         });
-        this.serverSideFiltering(authors, titles, yearBegin, yearEnd, this.getMaxResults()).then(function(results) {return JSON.parse(results)}).then(function(results) {
+        this.serverSideFiltering(authors, titles, yearBegin, yearEnd, keywords, this.getMaxResults()).then(function(results) {return JSON.parse(results)}).then(function(results) {
             panel.setTexts(results.texts);
             nbOfEntries = panel.getNbOfEntries();
             nbOfEntries[filterId] = results.entries.length;
