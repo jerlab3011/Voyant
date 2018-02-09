@@ -178,7 +178,7 @@ Ext.define('Voyant.panel.DreamScape', {
                                             filter["yearBegin"] = cmp.thumbs[0].value;
                                             filter["yearEnd"] = cmp.thumbs[1].value;
                                         } else {
-                                            filter[cmp.getItemId()] = vals[0];
+                                            filter[cmp.getItemId()] = vals;
                                         }
                                         console.warn(cmp, vals)
                                     }
@@ -188,12 +188,13 @@ Ext.define('Voyant.panel.DreamScape', {
                                 {
                                     fieldLabel: this.localize('authorLabel'),
                                     tokenType: 'author',
-                                    itemId: 'author'
+                                    itemId: 'authors'
                                 },
                                 {
                                     fieldLabel: this.localize('titleLabel'),
-                                    itemId: 'title',
-                                    tokenType: 'title'
+                                    tokenType: 'title',
+                                    itemId: 'titles'
+
                                 },
                                 {
                                     fieldLabel: this.localize('keywordLabel'),
@@ -215,11 +216,11 @@ Ext.define('Voyant.panel.DreamScape', {
                                     handler: function() {
                                         var filters = this.getFilters();
                                         var filter = filters[0];
-                                        var author = filter.author ? filter.author : "";
-                                        var title = filter.title ? filter.title : "";
+                                        var authors = filter.authors ? filter.authors : [];
+                                        var titles = filter.titles ? filter.titles : [];
                                         var yearBegin = filter.yearBegin ? filter.yearBegin : "";
                                         var yearEnd = filter.yearEnd ? filter.yearEnd : "";
-                                        this.filter(0, author, title, yearBegin, yearEnd);
+                                        this.filter(0, authors, titles, yearBegin, yearEnd);
                                     }
                                 }
                             ]
@@ -391,7 +392,7 @@ Ext.define('Voyant.panel.DreamScape', {
                                 var title = texts[travel.from.docIndex].title;
                                 var shortTitle = title.length < 20 ? title: title.substring(0,20) + "...";
                                 infos += '<li>from <a href="#" docIndex='+travel.from.docIndex+' offset='+travel.from.offset+' location='+travel.from.name+' class="termLocationLink">' + travel.from.name + '</a>' +
-                                    'to <a href="#" docIndex='+travel.to.docIndex+' offset='+travel.to.offset+' location='+travel.to.name+' class="termLocationLink">' + travel.to.name + '</a>' +
+                                    ' to <a href="#" docIndex='+travel.to.docIndex+' offset='+travel.to.offset+' location='+travel.to.name+' class="termLocationLink">' + travel.to.name + '</a> ' +
                                     shortTitle +', '+ (texts[travel.from.docIndex].authors?texts[travel.from.docIndex].authors: "Unknown") + ', ' + texts[travel.to.docIndex].year+'</li>';
                             });
                             infos += "</ul>";
@@ -629,7 +630,7 @@ Ext.define('Voyant.panel.DreamScape', {
         map.render();
     },
     // Filtering that should be done server side
-    serverSideFiltering: function(author, title, yearBegin, yearEnd, maxResults) {
+    serverSideFiltering: function(authors, titles, yearBegin, yearEnd, maxResults) {
         var dataFile = this.getBaseUrl()+'resources/dreamscape/datafile.json';
         return fetch(dataFile).then(function(response) {return response.json()}).then(function(json) {
             var locations = [];
@@ -637,8 +638,22 @@ Ext.define('Voyant.panel.DreamScape', {
             var texts = [];
             var docIndex = 0;
             json.forEach(function(text) {
-                if ((author === "" || (text.authors && text.authors.toLowerCase().includes(author.toLowerCase()))) &&
-                    text.title.toLowerCase().includes(title.toLowerCase()) &&
+                var authorsMatch = false;
+                if (text.authors) {
+                    authors.forEach(function(author) {
+                        if(text.authors.toLowerCase().includes(author.toLowerCase())) {
+                            authorsMatch = true;
+                        }
+                    })
+                }
+                var titlesMatch = false;
+                titles.forEach(function(title) {
+                    if(text.title.toLowerCase().includes(title.toLowerCase())) {
+                        titlesMatch = true;
+                    }
+                })
+                if ((authors.length === 0 || authorsMatch) &&
+                    (titles.length === 0 || titlesMatch) &&
                     (yearBegin === "" || text.year >= yearBegin) &&
                     (yearEnd === "" || text.year <= yearEnd)) {
                     texts[docIndex] = {
@@ -705,9 +720,9 @@ Ext.define('Voyant.panel.DreamScape', {
         })
     },
     // Called when the filter button is pressed
-    filter: function(filterId, author, title, yearBegin, yearEnd) {
-        author = typeof author !== 'undefined' ? author : "";
-        title = typeof title !== 'undefined' ? title : "";
+    filter: function(filterId, authors, titles, yearBegin, yearEnd) {
+        authors = typeof authors !== 'undefined' ? authors : [];
+        titles = typeof titles !== 'undefined' ? titles : [];
         yearBegin = typeof yearBegin !== 'undefined' ? yearBegin : "";
         yearEnd = typeof yearEnd !== 'undefined' ? yearEnd : "";
         var timedEvents = this.getTimedEvents(), cities = this.getCities(),
@@ -730,7 +745,7 @@ Ext.define('Voyant.panel.DreamScape', {
             });
             panel.generateTravels(filterId);
         });
-        this.serverSideFiltering(author, title, yearBegin, yearEnd, this.getMaxResults()).then(function(results) {return JSON.parse(results)}).then(function(results) {
+        this.serverSideFiltering(authors, titles, yearBegin, yearEnd, this.getMaxResults()).then(function(results) {return JSON.parse(results)}).then(function(results) {
             panel.setTexts(results.texts);
             nbOfEntries = panel.getNbOfEntries();
             nbOfEntries[filterId] = results.entries.length;
